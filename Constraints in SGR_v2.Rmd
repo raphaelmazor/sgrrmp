@@ -65,4 +65,12 @@ SGbasemap2.basemap+
 
 print(paste(c("There are",n.samps,"sampling events from",n.sites,"unique locations on",n.segs,"unique stream-segments"), collapse=" "))
 ```
-That's it for now.
+So let's add context: 
+Here are flow-lines colored by likely score
+```{r likely score map}
+SGbasemap2.basemap+
+ geom_path(data=nhd.sgr.fort, aes(x=long, y=lat, group=COMID, color=full0.50) )+
+  # geom_point(data=sites.c[!is.na(sites.c$csci),], aes(x=ActualLongitude, y=ActualLatitude,
+  #                             fill=csci), size=3, shape=21)+
+ scale_color_gradient2(name="Observed score", high="#2c7bb6", mid="#abd9e9", low="#d7191c", midpoint = 0.79)
+``
