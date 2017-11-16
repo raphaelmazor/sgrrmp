@@ -1,0 +1,68 @@
+---
+title: "Constraints on biological condition in the San Gabriel River"
+author: "Raphael D. Mazor and Marcus Beck"
+date: "November 15, 2017"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+self_contained: yes
+
+---
+
+```{r setup, include=FALSE}
+library(ggmap)
+library(rgdal)
+library(plyr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Basemap
+This is a basemap of the San Gabriel River watershed, from google maps.
+It's a black-and-white satellite view, with a transparent gray rectangle on top, which should make overplotting easier to see.
+```{r basemap, echo=FALSE}
+
+load("sgrrmp/data/spatial_data/nhd.sgr.fort.Rdata")
+sg.box<-make_bbox(lon=nhd.sgr.fort$long, lat=nhd.sgr.fort$lat, f=0.25)
+sg.map<-get_map(location=sg.box, zoom=10, source="google", maptype="satellite", color="bw")
+SGbasemap2<-ggmap(sg.map)
+SGbasemap2.basemap<-SGbasemap2+ 
+  geom_rect(xmin=-Inf, xmax=Inf, ymin=-Inf, ymax=Inf, fill="#f0f0f020")+
+  coord_map(xlim=c(min(nhd.sgr.fort$long, na.rm=T)-.025,max(nhd.sgr.fort$long, na.rm=T)+.025),
+            ylim=c(min(nhd.sgr.fort$lat, na.rm=T)-.025,max(nhd.sgr.fort$lat, na.rm=T)+.025))
+SGbasemap2.basemap
+
+```
+## Add flowlines
+I have the fortified flowlines for the San Gabriel River from NHD+.
+```{r add flowlines, echo=F}
+SGbasemap2.basemap+
+  geom_path(data=nhd.sgr.fort, aes(x=long, y=lat, group=COMID), color="#1f78b4")
+```
+## Overlay observed scores
+I have several sites, with replicates. We will plot the mean CSCI score at each location.
+
+```{r add scores, echo=F}
+load("sgrrmp/data/csci.Rdata")
+load("sgrrmp/data/sites.Rdata")
+load("sgrrmp/data/comid_statewide.Rdata")
+csci.d<-ddply(csci, .(StationCode), summarize, csci=max(Result, na.rm=T))
+sites.comid<-join(sites, comid)
+sites.c<-join(sites.comid, csci.d)
+sites.reps<-join(sites.comid,csci[,c("StationCode","SampleDate", "Result")])
+
+n.sites<-length(unique(sites.c$StationCode))
+n.samps<-nrow(unique(csci[which(csci$StationCode %in% sites$StationCode), c("StationCode","SampleDate", "FieldSampleID")]))
+n.segs<-length(unique(sites.c$COMID))
+SGbasemap2.basemap+
+ geom_path(data=nhd.sgr.fort, aes(x=long, y=lat, group=COMID), color="#1f78b4")+
+  geom_point(data=sites.c[!is.na(sites.c$csci),], aes(x=ActualLongitude, y=ActualLatitude,
+                              fill=csci), size=3, shape=21)+
+ scale_fill_gradient2(name="Observed score", high="#2c7bb6", mid="#abd9e9", low="#d7191c", midpoint = 0.79)
+
+print(paste(c("There are",n.samps,"sampling events from",n.sites,"unique locations on",n.segs,"unique stream-segments"), collapse=" "))
+```
+That's it for now.
