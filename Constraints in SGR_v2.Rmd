@@ -15,17 +15,103 @@ self_contained: yes
 library(ggmap)
 library(rgdal)
 library(plyr)
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warnings=FALSE)
 ```
 
+## CSCI scores in the SGRRMP
+```{r csci_scores, echo=F,fig.height=10}
+load("data/csci.Rdata")
+load("data/sites.Rdata")
+load("data/comid_statewide.Rdata")
+csci.d<-ddply(csci, .(StationCode), summarize, csci=max(Result, na.rm=T))
+sites.comid<-join(sites, comid)
+sites.c<-join(sites.comid, csci.d)
+sites.reps<-join(sites.comid,csci[,c("StationCode","SampleDate", "Result")])
 
+
+sites.c<-sites.c[order(sites.c$full0.50),]
+sites.c$StationCode<-factor(sites.c$StationCode, levels=sites.c$StationCode)
+scores.plot<-
+  ggplot(data=sites.c, aes(x=StationCode, y=csci))+
+  geom_point(shape=21, size=2, fill="white")+
+  theme_classic()+
+  ylab("CSCI score")+
+  coord_flip()
+scores.plot
+
+n.sites<-length(unique(sites.c$StationCode))
+n.samps<-nrow(unique(csci[which(csci$StationCode %in% sites$StationCode), c("StationCode","SampleDate", "FieldSampleID")]))
+n.segs<-length(unique(sites.c$COMID))
+
+print(paste(c("There are",n.samps,"sampling events from",n.sites,"unique locations on",n.segs,"unique stream-segments"), collapse=" "))
+```
+Add threshold:
+```{r thresh,echo=F,fig.height=10}
+scores.plot+
+  geom_hline(yintercept=0.79, linetype="dashed")
+```
+
+Add predicted range:
+```{r range, echo=F,fig.height=10}
+sel.sites<-unique(sites.c$StationCode)
+plot.dat_1site<-
+  unique(sites.reps[which(sites.reps$StationCode %in% sel.sites),
+             c("StationCode",
+               "full0.05","full0.10","full0.15","full0.20","full0.25","full0.30","full0.35","full0.40","full0.45","full0.50","full0.55","full0.60","full0.65","full0.70","full0.75","full0.80","full0.85","full0.90","full0.95",
+"full.class")])
+
+plot.dat_1site<-plot.dat_1site[order(plot.dat_1site$full0.50),]
+plot.dat_1site$StationCode<-factor(plot.dat_1site$StationCode, levels=plot.dat_1site$StationCode)
+
+range.plot<-ggplot(data=plot.dat_1site, aes(x=StationCode, y=full0.50))+
+  # geom_point(shape=21, size=2, fill="white")+
+  geom_linerange(aes(ymin=full0.05, ymax=full0.95), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.10, ymax=full0.90), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.15, ymax=full0.85), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.20, ymax=full0.80), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.25, ymax=full0.75), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.30, ymax=full0.70), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.35, ymax=full0.65), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.40, ymax=full0.60), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.45, ymax=full0.55), size=4, alpha=0.11)+
+  theme_classic()+
+  coord_flip()+
+  ylab("CSCI score")+
+  geom_hline(yintercept=0.79, linetype="dashed")
+range.plot
+```
+Add classifications
+```{r classes_sites, echo=F, fig.height=10, warnings=FALSE}
+
+range.class<-
+  ggplot(data=plot.dat_1site, aes(x=StationCode, y=full0.50))+
+  # geom_point(shape=21, size=2, fill="white")+
+  geom_linerange(aes(ymin=full0.05, ymax=full0.95, color=full.class), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.10, ymax=full0.90, color=full.class), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.15, ymax=full0.85, color=full.class), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.20, ymax=full0.80, color=full.class), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.25, ymax=full0.75, color=full.class), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.30, ymax=full0.70, color=full.class), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.35, ymax=full0.65, color=full.class), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.40, ymax=full0.60, color=full.class), size=4, alpha=0.11)+
+  geom_linerange(aes(ymin=full0.45, ymax=full0.55, color=full.class), size=4, alpha=0.11)+
+  theme_classic()+
+  coord_flip()+
+  geom_hline(yintercept=0.79, linetype="dashed")+
+  ylab("CSCI score")+
+  scale_color_manual(name="Stream Class",values=c("#fb9a99","#a6cee3","#b2df8a"),
+                     labels=c("Likely constrained","Likely high quality","Intermediate or\nindeterminate"))+
+  guides(colour = guide_legend(override.aes = list(alpha=1)))
+
+range.class
+```
 
 ## Basemap
 This is a basemap of the San Gabriel River watershed, from google maps.
 It's a black-and-white satellite view, with a transparent gray rectangle on top, which should make overplotting easier to see.
-```{r basemap, echo=FALSE}
+```{r basemap, echo=FALSE,fig.height=8}
 
-load("sgrrmp/data/spatial_data/nhd.sgr.fort.Rdata")
+load("data/spatial_data/nhd.sgr.fort.Rdata")
 sg.box<-make_bbox(lon=nhd.sgr.fort$long, lat=nhd.sgr.fort$lat, f=0.25)
 sg.map<-get_map(location=sg.box, zoom=10, source="google", maptype="satellite", color="bw")
 SGbasemap2<-ggmap(sg.map)
@@ -38,39 +124,28 @@ SGbasemap2.basemap
 ```
 ## Add flowlines
 I have the fortified flowlines for the San Gabriel River from NHD+.
-```{r add flowlines, echo=F}
+```{r add flowlines, echo=F,fig.height=8}
 SGbasemap2.basemap+
   geom_path(data=nhd.sgr.fort, aes(x=long, y=lat, group=COMID), color="#1f78b4")
 ```
 ## Overlay observed scores
 I have several sites, with replicates. We will plot the mean CSCI score at each location.
 
-```{r add scores, echo=F}
-load("sgrrmp/data/csci.Rdata")
-load("sgrrmp/data/sites.Rdata")
-load("sgrrmp/data/comid_statewide.Rdata")
-csci.d<-ddply(csci, .(StationCode), summarize, csci=max(Result, na.rm=T))
-sites.comid<-join(sites, comid)
-sites.c<-join(sites.comid, csci.d)
-sites.reps<-join(sites.comid,csci[,c("StationCode","SampleDate", "Result")])
-
-n.sites<-length(unique(sites.c$StationCode))
-n.samps<-nrow(unique(csci[which(csci$StationCode %in% sites$StationCode), c("StationCode","SampleDate", "FieldSampleID")]))
-n.segs<-length(unique(sites.c$COMID))
+```{r add scores, echo=F,fig.height=8}
 SGbasemap2.basemap+
  geom_path(data=nhd.sgr.fort, aes(x=long, y=lat, group=COMID), color="#1f78b4")+
   geom_point(data=sites.c[!is.na(sites.c$csci),], aes(x=ActualLongitude, y=ActualLatitude,
                               fill=csci), size=3, shape=21)+
  scale_fill_gradient2(name="Observed score", high="#2c7bb6", mid="#abd9e9", low="#d7191c", midpoint = 0.79)
 
-print(paste(c("There are",n.samps,"sampling events from",n.sites,"unique locations on",n.segs,"unique stream-segments"), collapse=" "))
+
 ```
 So let's add context: 
 Here are flow-lines colored by likely score
-```{r likely score map}
+```{r likely score map, echo=FALSE,fig.height=8}
 SGbasemap2.basemap+
  geom_path(data=nhd.sgr.fort, aes(x=long, y=lat, group=COMID, color=full0.50) )+
   # geom_point(data=sites.c[!is.na(sites.c$csci),], aes(x=ActualLongitude, y=ActualLatitude,
   #                             fill=csci), size=3, shape=21)+
- scale_color_gradient2(name="Observed score", high="#2c7bb6", mid="#abd9e9", low="#d7191c", midpoint = 0.79)
-``
+ scale_color_gradient2(name="Likely score", high="#2c7bb6", mid="#abd9e9", low="#d7191c", midpoint = 0.79)
+```
